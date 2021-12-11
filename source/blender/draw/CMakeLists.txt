@@ -552,6 +552,7 @@ set(GLSL_SRC
   engines/basic/shaders/basic_depth_frag.glsl
 
   engines/overlay/shaders/overlay_antialiasing_frag.glsl
+  engines/overlay/shaders/overlay_armature_alpha_lib.glsl
   engines/overlay/shaders/overlay_armature_dof_solid_frag.glsl
   engines/overlay/shaders/overlay_armature_dof_vert.glsl
   engines/overlay/shaders/overlay_armature_envelope_outline_vert.glsl

@@ -11,9 +11,13 @@ GPU_SHADER_INTERFACE_INFO(overlay_armature_wire_iface, "")
     .flat(Type::VEC2, "edgeStart")
     .no_perspective(Type::VEC2, "edgePos");
 
-GPU_SHADER_CREATE_INFO(overlay_armature_common)
+GPU_SHADER_CREATE_INFO(overlay_armature_alpha)
     .push_constant(Type::FLOAT, "alpha")
-    .additional_info("draw_view");
+    .push_constant(Type::VEC2, "wireFadeDepth");
+
+GPU_SHADER_CREATE_INFO(overlay_armature_common)
+    .additional_info("draw_view", "overlay_armature_alpha");
+
 
 /* -------------------------------------------------------------------- */
 /** \name Armature Sphere
@@ -270,11 +274,10 @@ GPU_SHADER_CREATE_INFO(overlay_armature_wire)
     .do_static_compilation(true)
     .vertex_in(0, Type::VEC3, "pos")
     .vertex_in(1, Type::VEC4, "color")
-    .push_constant(Type::FLOAT, "alpha")
     .vertex_out(overlay_armature_wire_iface)
     .vertex_source("overlay_armature_wire_vert.glsl")
     .fragment_source("overlay_armature_wire_frag.glsl")
-    .additional_info("overlay_frag_output", "draw_mesh", "draw_globals");
+    .additional_info("overlay_frag_output", "draw_mesh", "draw_globals", "overlay_armature_alpha");
 
 GPU_SHADER_CREATE_INFO(overlay_armature_wire_clipped)
     .do_static_compilation(true)

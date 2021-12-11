@@ -210,8 +210,7 @@ typedef struct View3DOverlay {
 
   /** Armature edit/pose mode settings. */
   float xray_alpha_bone;
-  float bone_wire_alpha;
-  char _pad1[4];
+  float bone_wire_alpha, bone_wire_fade_depth;
 
   /** Darken Inactive. */
   float fade_alpha;
@@ -532,6 +531,7 @@ enum {
   V3D_OVERLAY_STATS = (1 << 11),
   V3D_OVERLAY_FADE_INACTIVE = (1 << 12),
   V3D_OVERLAY_VIEWER_ATTRIBUTE = (1 << 13),
+  V3D_OVERLAY_BONE_FADE_DEPTH = (1 << 14),
 };
 
 /** #View3DOverlay.edit_flag */
