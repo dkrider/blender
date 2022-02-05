@@ -749,6 +749,10 @@ static void compute_keyblock_data(ActKeyBlockInfo *info,
   /* Remember non-bezier interpolation info. */
   if (prev->ipo != BEZT_IPO_BEZ) {
     info->flag |= ACTKEYBLOCK_FLAG_NON_BEZIER;
+    info->ipo = prev->ipo;
+  }
+  else {
+    info->ipo = -1;
   }
 
   info->sel = BEZT_ISSEL_ANY(prev) || BEZT_ISSEL_ANY(beztn);
@@ -765,6 +769,13 @@ static void add_keyblock_info(ActKeyColumn *col, const ActKeyBlockInfo *block)
     col->block.conflict |= (col->block.flag ^ block->flag);
     col->block.flag |= block->flag;
     col->block.sel |= block->sel;
+
+    /* Combine interpolations; detect conflicts and use max value. */
+    if (col->block.ipo != block->ipo) {
+      col->block.conflict |= ACTKEYBLOCK_FLAG_NON_BEZIER;
+    }
+
+    col->block.ipo = MAX2(col->block.ipo, block->ipo);
   }
 
   if (block->flag) {

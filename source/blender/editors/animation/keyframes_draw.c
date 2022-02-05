@@ -287,14 +287,30 @@ static void draw_keylist_block_interpolation_line(const DrawKeylistUIData *ctx,
                                                   const ActKeyColumn *ab,
                                                   float ypos)
 {
+  float width = ctx->ipo_size;
+  bool fill = true;
+
+  switch (ab->block.ipo) {
+    case BEZT_IPO_CONST:
+      width *= 1.7f;
+      break;
+
+    case BEZT_IPO_LIN:
+      break;
+
+    default:
+      width *= 2.0f;
+      fill = false;
+  }
+
   UI_draw_roundbox_4fv(
       &(const rctf){
           .xmin = ab->cfra,
           .xmax = ab->next->cfra,
-          .ymin = ypos - ctx->ipo_size,
-          .ymax = ypos + ctx->ipo_size,
+          .ymin = ypos - width,
+          .ymax = ypos + width,
       },
-      true,
+      fill,
       3.0f,
       (ab->block.conflict & ACTKEYBLOCK_FLAG_NON_BEZIER) ? ctx->ipo_color_mix : ctx->ipo_color);
 }
