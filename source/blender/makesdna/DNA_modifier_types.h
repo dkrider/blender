@@ -1144,7 +1144,10 @@ typedef struct ShrinkwrapModifierData {
    */
   char subsurfLevels;
 
-  char _pad[2];
+  /** Number of smoothing iterations to apply. */
+  char smoothRepeat;
+
+  char _pad[1];
 } ShrinkwrapModifierData;
 
 /** #ShrinkwrapModifierData.shrinkType */

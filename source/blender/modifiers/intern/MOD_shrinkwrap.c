@@ -245,6 +245,7 @@ static void panel_draw(const bContext *UNUSED(C), Panel *panel)
     uiItemR(layout, ptr, "auxiliary_target", 0, NULL, ICON_NONE);
   }
   uiItemR(layout, ptr, "offset", 0, NULL, ICON_NONE);
+  uiItemR(layout, ptr, "smooth_steps", 0, NULL, ICON_NONE);
 
   modifier_vgroup_ui(layout, ptr, &ob_ptr, "vertex_group", "invert_vertex_group", NULL);
 

@@ -4368,6 +4368,14 @@ static void rna_def_modifier_shrinkwrap(BlenderRNA *brna)
   RNA_def_property_ui_text(prop, "Invert", "Invert vertex group influence");
   RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
+  prop = RNA_def_property(srna, "smooth_steps", PROP_INT, PROP_NONE);
+  RNA_def_property_int_sdna(prop, NULL, "smoothRepeat");
+  RNA_def_property_range(prop, 0, 50);
+  RNA_def_property_ui_range(prop, 0, 50, 1, -1);
+  RNA_def_property_ui_text(
+      prop, "Smoothing Steps", "Number of smoothing iterations to apply to the vertex offsets");
+  RNA_def_property_update(prop, 0, "rna_Modifier_update");
+
   RNA_define_lib_overridable(false);
 }
 

@@ -63,6 +63,10 @@ struct ShrinkwrapCalcData {
   const float (*vert_normals)[3];
   /* Vertices being shrink-wrapped. */
   float (*vertexCos)[3];
+  /* Cached vertex deltas. */
+  float (*deltas)[3];
+  /* Cached vertex weights */
+  float *weights;
   int numVerts;
 
   const MDeformVert *dvert; /* Pointer to mdeform array */
@@ -330,6 +334,19 @@ void BKE_shrinkwrap_compute_boundary_data(Mesh *mesh)
   mesh->runtime.shrinkwrap_data = shrinkwrap_build_boundary_data(mesh);
 }
 
+/** Output the computed vertex position either to the final coordinate or the delta array. */
+BLI_INLINE void shrinkwrap_save_result(
+    ShrinkwrapCalcData *calc, int i, float *co, float *result, float weight)
+{
+  if (calc->deltas) {
+    sub_v3_v3v3(calc->deltas[i], result, co);
+    mul_v3_fl(calc->deltas[i], weight);
+  }
+  else {
+    interp_v3_v3v3(co, co, result, weight); /* linear interpolation */
+  }
+}
+
 /**
  * Shrink-wrap to the nearest vertex
  *
@@ -356,6 +373,10 @@ static void shrinkwrap_calc_nearest_vertex_cb_ex(void *__restrict userdata,
 
   if (weight == 0.0f) {
     return;
+  }
+
+  if (calc->weights) {
+    calc->weights[i] = weight;
   }
 
   /* Convert the vertex to tree coordinates */
@@ -394,7 +415,7 @@ static void shrinkwrap_calc_nearest_vertex_cb_ex(void *__restrict userdata,
     copy_v3_v3(tmp_co, nearest->co);
     BLI_space_transform_invert(&calc->local2target, tmp_co);
 
-    interp_v3_v3v3(co, co, tmp_co, weight); /* linear interpolation */
+    shrinkwrap_save_result(calc, i, co, tmp_co, weight);
   }
 }
 
@@ -521,6 +542,10 @@ static void shrinkwrap_calc_normal_projection_cb_ex(void *__restrict userdata,
     return;
   }
 
+  if (calc->weights) {
+    calc->weights[i] = weight;
+  }
+
   if (calc->vert != nullptr && calc->smd->projAxis == MOD_SHRINKWRAP_PROJECT_OVER_NORMAL) {
     /* calc->vert contains verts from evaluated mesh. */
     /* These coordinates are deformed by vertexCos only for normal projection
@@ -611,7 +636,7 @@ static void shrinkwrap_calc_normal_projection_cb_ex(void *__restrict userdata,
                                            hit->co);
     }
 
-    interp_v3_v3v3(co, co, hit->co, weight);
+    shrinkwrap_save_result(calc, i, co, hit->co, weight);
   }
 }
 
@@ -1119,6 +1144,10 @@ static void shrinkwrap_calc_nearest_surface_point_cb_ex(void *__restrict userdat
     return;
   }
 
+  if (calc->weights) {
+    calc->weights[i] = weight;
+  }
+
   /* Convert the vertex to tree coordinates */
   if (calc->vert) {
     copy_v3_v3(tmp_co, calc->vert[i].co);
@@ -1163,7 +1192,8 @@ static void shrinkwrap_calc_nearest_surface_point_cb_ex(void *__restrict userdat
 
     /* Convert the coordinates back to mesh coordinates */
     BLI_space_transform_invert(&calc->local2target, tmp_co);
-    interp_v3_v3v3(co, co, tmp_co, weight); /* linear interpolation */
+
+    shrinkwrap_save_result(calc, i, co, tmp_co, weight);
   }
 }
 
@@ -1363,6 +1393,137 @@ static void shrinkwrap_calc_nearest_surface_point(ShrinkwrapCalcData *calc)
       0, calc->numVerts, &data, shrinkwrap_calc_nearest_surface_point_cb_ex, &settings);
 }
 
+static void shrinkwrap_smooth(
+    ShrinkwrapCalcData *calc, Object *ob, Mesh *mesh, float (*vertexCos)[3], int numVerts)
+{
+  if (mesh == NULL) {
+    return;
+  }
+
+  /* Number of neighboring vertices for the given vertex. */
+  uint *num_neighbor_verts = static_cast<uint *>(
+      MEM_calloc_arrayN((size_t)numVerts, sizeof(*num_neighbor_verts), __func__));
+
+  /* Delta magnitudes after standard shrinkwrap before smoothing (used for clamping). */
+  float *original_mags = static_cast<float *>(
+      MEM_calloc_arrayN((size_t)numVerts, sizeof(*original_mags), __func__));
+
+  /* Accumulation buffer for smoothing. */
+  float(*accumulated_deltas)[3] = static_cast<float(*)[3]>(
+      MEM_malloc_arrayN((size_t)numVerts, sizeof(*accumulated_deltas), __func__));
+
+  /* Precompute data that doesn't change during iteration. */
+  const MEdge *const medges = BKE_mesh_edges(mesh);
+  const int num_edges = mesh->totedge;
+
+  for (int i = 0; i < num_edges; i++) {
+    num_neighbor_verts[medges[i].v1]++;
+    num_neighbor_verts[medges[i].v2]++;
+  }
+
+  for (int i = 0; i < numVerts; i++) {
+    original_mags[i] = len_v3(calc->deltas[i]);
+  }
+
+  /* Iterative smoothing. */
+  for (int j = 0; j < calc->smd->smoothRepeat; j++) {
+    /* Clear the accumulation array. */
+    memset(accumulated_deltas, 0, sizeof(*accumulated_deltas) * (size_t)numVerts);
+
+    /* Accumulate data from edges into vertices. */
+    for (int i = 0; i < num_edges; i++) {
+      const uint idx1 = medges[i].v1;
+      const uint idx2 = medges[i].v2;
+
+      const float weight1 = calc->weights[idx1];
+      const float weight2 = calc->weights[idx2];
+
+      /* Zero weight vertices always have zero offsets. */
+      if (weight1 <= 0 || weight2 <= 0) {
+        break;
+      }
+
+      /* Proportionally reduce offsets when transitioning from higher to lower weight. */
+      const float fac1 = min_ff(1.0f, weight1 / weight2);
+
+      madd_v3_v3fl(accumulated_deltas[idx1], calc->deltas[idx2], fac1);
+
+      const float fac2 = min_ff(1.0f, weight2 / weight1);
+
+      madd_v3_v3fl(accumulated_deltas[idx2], calc->deltas[idx1], fac2);
+    }
+
+    /* Update vertex offsets. */
+    for (int i = 0; i < numVerts; i++) {
+      if (num_neighbor_verts[i] == 0) {
+        continue;
+      }
+
+      /* Final accumulated vector and its length. */
+      float accum[3];
+
+      mul_v3_v3fl(accum, accumulated_deltas[i], 1.0f / (float)num_neighbor_verts[i]);
+
+      const float mag_accum = len_v3(accum);
+
+      /* Zero accumulated magnitude will never cause an update. */
+      if (mag_accum == 0.0f) {
+        continue;
+      }
+
+      /* Apply interpolation with clamping to shrink result. */
+      const float fac_strength = 0.5f;
+
+      float *delta = calc->deltas[i];
+
+      if (original_mags[i] > 0) {
+        /* Fade out influence on direction if smoothing tries to reduce the magnitude.
+         * This can't be a hard cutoff to avoid vertices jumping sideways in animation.
+         * When magnitude increase is above the threshold, transitions to regular smooth. */
+        const float dir_lock_threshold = 1.5f;
+        const float fac_direction = smoothstep(
+            1.0f, dir_lock_threshold, mag_accum / original_mags[i]);
+
+        if (fac_direction == 0.0f) {
+          /* Decreasing the delta magnitude is completely blocked. */
+          continue;
+        }
+
+        if (fac_direction == 1.0f) {
+          /* Regular smoothing because the smoothed delta increase is big enough. */
+          interp_v3_v3v3(delta, delta, accum, fac_strength);
+        }
+        else {
+          /* Regular smoothing result. */
+          interp_v3_v3v3(accum, delta, accum, fac_strength);
+
+          /* Only interpolate the delta magnitude while keeping direction. */
+          const float mag_delta = len_v3(delta);
+          const float mag_interp = interpf(mag_accum, mag_delta, fac_strength);
+
+          mul_v3_fl(delta, max_ff(mag_interp, original_mags[i]) / mag_delta);
+
+          /* Apply the fade out by mixing between the two. */
+          interp_v3_v3v3(delta, delta, accum, fac_direction);
+        }
+      }
+      else {
+        /* Regular smoothing because the original delta is zero. */
+        interp_v3_v3v3(delta, delta, accum, fac_strength);
+      }
+    }
+  }
+
+  /* Apply vertex offsets to the final coordinates. */
+  for (int i = 0; i < numVerts; i++) {
+    add_v3_v3(vertexCos[i], calc->deltas[i]);
+  }
+
+  MEM_freeN(accumulated_deltas);
+  MEM_freeN(num_neighbor_verts);
+  MEM_freeN(original_mags);
+}
+
 void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd,
                                const ModifierEvalContext *ctx,
                                Scene *scene,
@@ -1393,6 +1554,13 @@ void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd,
   calc.dvert = dvert;
   calc.vgroup = defgrp_index;
   calc.invert_vgroup = (smd->shrinkOpts & MOD_SHRINKWRAP_INVERT_VGROUP) != 0;
+
+  if (smd->smoothRepeat > 0) {
+    calc.deltas = static_cast<float(*)[3]>(
+        MEM_calloc_arrayN((size_t)numVerts, sizeof(*calc.deltas), __func__));
+    calc.weights = static_cast<float *>(
+        MEM_calloc_arrayN((size_t)numVerts, sizeof(*calc.weights), __func__));
+  }
 
   if (smd->target != nullptr) {
     Object *ob_target = DEG_get_evaluated_object(ctx->depsgraph, smd->target);
@@ -1468,6 +1636,13 @@ void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd,
     }
 
     BKE_shrinkwrap_free_tree(&tree);
+  }
+
+  if (smd->smoothRepeat > 0) {
+    shrinkwrap_smooth(&calc, ob, mesh, vertexCos, numVerts);
+
+    MEM_freeN(calc.deltas);
+    MEM_freeN(calc.weights);
   }
 
   /* free memory */
