@@ -158,7 +158,7 @@ bool BLI_newton3d_solve(Newton3D_DeltaFunc func_delta,
                         float result[3])
 {
   float fdelta[3], fdeltav, next_fdeltav;
-  float jacobian[3][3], step[3], x[3], x_next[3];
+  float jacobian[3][3], step[3], x[3], x_next[3], x_check[3];
 
   epsilon *= epsilon;
 
@@ -181,17 +181,6 @@ bool BLI_newton3d_solve(Newton3D_DeltaFunc func_delta,
 
     mul_v3_m3v3(step, jacobian, fdelta);
     sub_v3_v3v3(x_next, x, step);
-
-    /* Custom out-of-bounds value correction. */
-    if (func_correction) {
-      if (trace) {
-        printf("%3d * (%g, %g, %g)\n", i, x_next[0], x_next[1], x_next[2]);
-      }
-
-      if (!func_correction(userdata, x, step, x_next)) {
-        return false;
-      }
-    }
 
     func_delta(userdata, x_next, fdelta);
     next_fdeltav = len_squared_v3(fdelta);
@@ -216,6 +205,24 @@ bool BLI_newton3d_solve(Newton3D_DeltaFunc func_delta,
 
       if (trace) {
         printf("%3d . (%g, %g, %g) %g\n", i, x_next[0], x_next[1], x_next[2], next_fdeltav);
+      }
+    }
+
+    /* Custom out-of-bounds value correction. */
+    if (func_correction) {
+      copy_v3_v3(x_check, x_next);
+
+      if (!func_correction(userdata, x, step, x_next)) {
+        return false;
+      }
+
+      if (!equals_v3v3(x_check, x_next)) {
+        func_delta(userdata, x_next, fdelta);
+        next_fdeltav = len_squared_v3(fdelta);
+
+        if (trace) {
+          printf("%3d * (%g, %g, %g) %g\n", i, x_next[0], x_next[1], x_next[2], next_fdeltav);
+        }
       }
     }
 
