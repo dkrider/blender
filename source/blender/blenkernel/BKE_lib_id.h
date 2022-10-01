@@ -479,6 +479,8 @@ void BKE_lib_id_swap_full(struct Main *bmain, struct ID *id_a, struct ID *id_b);
 
 /**
  * Sort given \a id into given \a lb list, using case-insensitive comparison of the id names.
+ * ID's belonging to the same library are placed together in alphabetical order.
+ * Order of the libraries depends on the order in which they are added.
  *
  * \note All other IDs beside given one are assumed already properly sorted in the list.
  *
