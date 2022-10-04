@@ -83,16 +83,20 @@ TEST(lib_id_main_sort, linked_ids_1)
   Library *lib_a = static_cast<Library *>(BKE_id_new(ctx.bmain, ID_LI, "LI_A"));
   Library *lib_b = static_cast<Library *>(BKE_id_new(ctx.bmain, ID_LI, "LI_B"));
   ID *id_c = static_cast<ID *>(BKE_id_new(ctx.bmain, ID_OB, "OB_C"));
+  test_lib_id_main_sort_check_order({id_c});
   ID *id_a = static_cast<ID *>(BKE_id_new(ctx.bmain, ID_OB, "OB_A"));
+  test_lib_id_main_sort_check_order({id_a, id_c});
   ID *id_b = static_cast<ID *>(BKE_id_new(ctx.bmain, ID_OB, "OB_B"));
+  test_lib_id_main_sort_check_order({id_a, id_b, id_c});
 
   change_lib(ctx.bmain, id_a, lib_a);
   id_sort_by_name(&ctx.bmain->objects, id_a, nullptr);
+  test_lib_id_main_sort_check_order({id_b, id_c, id_a});
   change_lib(ctx.bmain, id_b, lib_a);
   id_sort_by_name(&ctx.bmain->objects, id_b, nullptr);
+  test_lib_id_main_sort_check_order({id_c, id_a, id_b});
   EXPECT_TRUE(ctx.bmain->objects.first == id_c);
   EXPECT_TRUE(ctx.bmain->objects.last == id_b);
-  test_lib_id_main_sort_check_order({id_c, id_a, id_b});
 
   change_lib(ctx.bmain, id_a, lib_b);
   id_sort_by_name(&ctx.bmain->objects, id_a, nullptr);
@@ -176,8 +180,11 @@ TEST(lib_id_main_unique_name, ids_sorted_by_default)
   LibIDMainSortTestContext ctx;
 
   ID *id_foo = static_cast<ID *>(BKE_id_new(ctx.bmain, ID_OB, "Foo"));
+  test_lib_id_main_sort_check_order({id_foo});
   ID *id_bar = static_cast<ID *>(BKE_id_new(ctx.bmain, ID_OB, "Bar"));
+  test_lib_id_main_sort_check_order({id_bar, id_foo});
   ID *id_baz = static_cast<ID *>(BKE_id_new(ctx.bmain, ID_OB, "Baz"));
+  test_lib_id_main_sort_check_order({id_bar, id_baz, id_foo});
   ID *id_yes = static_cast<ID *>(BKE_id_new(ctx.bmain, ID_OB, "Yes"));
   test_lib_id_main_sort_check_order({id_bar, id_baz, id_foo, id_yes});
 
