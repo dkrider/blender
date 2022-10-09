@@ -19,6 +19,9 @@ static int node_shader_gpu_mix_shader(GPUMaterial *mat,
                                       GPUNodeStack *in,
                                       GPUNodeStack *out)
 {
+  GPU_link_stack_conditional(mat, &in[0], GPU_CMP_LT, 1.0f, &in[1]);
+  GPU_link_stack_conditional(mat, &in[0], GPU_CMP_GT, 0.0f, &in[2]);
+
   return GPU_stack_link(mat, node, "node_mix_shader", in, out);
 }
 

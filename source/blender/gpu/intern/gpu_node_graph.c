@@ -806,6 +806,63 @@ bool GPU_stack_link(GPUMaterial *material,
   return valid;
 }
 
+/* Creating conditions */
+
+static GPUNodeConditional *gpu_conditional_create(GPUComparisonType cmp, float threshold)
+{
+  GPUNodeConditional *cond = MEM_callocN(sizeof(GPUNodeConditional), "GPUNode");
+
+  cond->node.name = "if";
+  cond->node.type = GPU_NODE_CONDITIONAL;
+
+  cond->cmp_type = cmp;
+  cond->threshold = threshold;
+
+  return cond;
+}
+
+GPUNodeLink *GPU_link_conditional(GPUMaterial *material,
+                                  GPUNodeLink *cmp_input,
+                                  GPUComparisonType cmp,
+                                  float threshold,
+                                  eGPUType result_type,
+                                  GPUNodeLink *if_true,
+                                  GPUNodeLink *if_false)
+{
+  GPUNodeGraph *graph = gpu_material_node_graph(material);
+  GPUNodeConditional *cond = gpu_conditional_create(cmp, threshold);
+  GPUNodeLink *output;
+
+  gpu_node_input_link(&cond->node, cmp_input, GPU_FLOAT);
+  gpu_node_input_link(&cond->node, if_true, result_type);
+
+  if (if_false) {
+    gpu_node_input_link(&cond->node, if_false, result_type);
+  }
+
+  gpu_node_output(&cond->node, result_type, &output);
+
+  BLI_addtail(&graph->nodes, &cond->node);
+
+  return output;
+}
+
+bool GPU_link_stack_conditional(GPUMaterial *material,
+                                GPUNodeStack *cmp_input,
+                                GPUComparisonType cmp,
+                                float threshold,
+                                GPUNodeStack *inout_if_true)
+{
+  if (cmp_input->link == NULL || inout_if_true->link == NULL) {
+    return false;
+  }
+
+  inout_if_true->link = GPU_link_conditional(
+      material, cmp_input->link, cmp, threshold, inout_if_true->type, inout_if_true->link, NULL);
+
+  return true;
+}
+
 /* Node Graph */
 
 static void gpu_inputs_free(ListBase *inputs)
@@ -907,6 +964,32 @@ static void gpu_nodes_tag(GPUNodeLink *link, eGPUNodeTag tag)
   LISTBASE_FOREACH (GPUInput *, input, &node->inputs) {
     if (input->link) {
       gpu_nodes_tag(input->link, tag);
+    }
+  }
+}
+
+void gpu_node_graph_index_nodes(GPUNodeGraph *graph)
+{
+  graph->num_nodes = 0;
+
+  LISTBASE_FOREACH (GPUNode *, node, &graph->nodes) {
+    node->index = graph->num_nodes++;
+  }
+
+  graph->num_branches = 1;
+
+  LISTBASE_FOREACH_BACKWARD (GPUNode *, node, &graph->nodes) {
+    if (node->type == GPU_NODE_CONDITIONAL) {
+      struct GPUNodeConditional *cond = (struct GPUNodeConditional *)node;
+
+      cond->branch_true = graph->num_branches++;
+
+      if (BLI_listbase_count(&node->inputs) > 2) {
+        cond->branch_false = graph->num_branches++;
+      }
+      else {
+        cond->branch_false = -1;
+      }
     }
   }
 }

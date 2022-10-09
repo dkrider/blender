@@ -278,6 +278,11 @@ static int gpu_shader_mix(GPUMaterial *mat,
     }
   }
 
+  if (is_color_mode && blend_type == MA_RAMP_BLEND) {
+    GPU_link_stack_conditional(mat, &in[0], GPU_CMP_NE, 1.0f, &in[6]);
+    GPU_link_stack_conditional(mat, &in[0], GPU_CMP_NE, 0.0f, &in[7]);
+  }
+
   int ret = GPU_stack_link(mat, node, name, in, out);
 
   if (ret && is_color_mode && storage.clamp_result) {

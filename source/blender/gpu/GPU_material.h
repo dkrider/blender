@@ -195,6 +195,43 @@ bool GPU_stack_link(GPUMaterial *mat,
                     GPUNodeStack *out,
                     ...);
 
+typedef enum {
+  GPU_CMP_NE = 0,
+  GPU_CMP_LT,
+  GPU_CMP_LE,
+  GPU_CMP_EQ,
+  GPU_CMP_GE,
+  GPU_CMP_GT,
+} GPUComparisonType;
+
+/**
+ * Create a runtime ternary conditional, choosing between two inputs based on
+ * comparing a scalar float input with a constant threshold.
+ *
+ * \param cmp_input: Input to compare with the threshold.
+ * \param result_type: Type of value to produce.
+ * \param if_true: Input to use when the condition is true.
+ * \param if_false: Input to use when the condition is false. If null, this signifies the
+ * conditional is a hint the input is unused if the condition is false. Depending on context, a
+ * default output is used, or the conditional may be dropped completely.
+ */
+GPUNodeLink *GPU_link_conditional(GPUMaterial *mat,
+                                  GPUNodeLink *cmp_input,
+                                  GPUComparisonType cmp,
+                                  float threshold,
+                                  eGPUType result_type,
+                                  GPUNodeLink *if_true,
+                                  GPUNodeLink *if_false);
+
+/**
+ * Introduces a predicate for evaluating the input only if necessary.
+ */
+bool GPU_link_stack_conditional(GPUMaterial *mat,
+                                GPUNodeStack *cmp_input,
+                                GPUComparisonType cmp,
+                                float threshold,
+                                GPUNodeStack *inout_if_true);
+
 void GPU_material_output_surface(GPUMaterial *material, GPUNodeLink *link);
 void GPU_material_output_volume(GPUMaterial *material, GPUNodeLink *link);
 void GPU_material_output_displacement(GPUMaterial *material, GPUNodeLink *link);

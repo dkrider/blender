@@ -55,6 +55,8 @@ typedef enum {
   GPU_NODE_LINK_DIFFERENTIATE_FLOAT_FN,
 } GPUNodeLinkType;
 
+typedef enum { GPU_NODE_CALL = 0, GPU_NODE_CONDITIONAL } GPUNodeType;
+
 typedef enum {
   GPU_NODE_TAG_NONE = 0,
   GPU_NODE_TAG_SURFACE = (1 << 0),
@@ -73,12 +75,24 @@ struct GPUNode {
 
   const char *name;
 
+  GPUNodeType type;
+  int index;
+
   /* Internal flag to mark nodes during pruning */
   eGPUNodeTag tag;
 
   ListBase inputs;
   ListBase outputs;
 };
+
+typedef struct GPUNodeConditional {
+  GPUNode node;
+
+  GPUComparisonType cmp_type;
+  float threshold;
+
+  int branch_true, branch_false;
+} GPUNodeConditional;
 
 struct GPUNodeLink {
   GPUNodeStack *socket;
@@ -158,6 +172,9 @@ typedef struct GPUNodeGraph {
   /* Nodes */
   ListBase nodes;
 
+  /* Statistics after pruning. */
+  int num_nodes, num_branches;
+
   /* Main Outputs. */
   GPUNodeLink *outlink_surface;
   GPUNodeLink *outlink_volume;
@@ -187,6 +204,7 @@ typedef struct GPUNodeGraph {
 /* Node Graph */
 
 void gpu_node_graph_prune_unused(GPUNodeGraph *graph);
+void gpu_node_graph_index_nodes(GPUNodeGraph *graph);
 void gpu_node_graph_finalize_uniform_attrs(GPUNodeGraph *graph);
 
 /**
